@@ -1,0 +1,15 @@
+{
+    "name": "rahmanmoradidev/subsource",
+    "description": "getting the latest persian subtitles!",
+    "type": "project",
+    "require": {
+        "rmccue/requests": "^2.0"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Rahman",
+            "email": "RahmanMoradiDev@gmail.com"
+        }
+    ]
+}
