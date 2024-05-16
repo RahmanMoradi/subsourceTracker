@@ -6,8 +6,8 @@ require("vendor/autoload.php");
 use WpOrg\Requests\Requests;
 
 //Token Here
-$TOKEN = "12313213:123acsacsacacacaca";
-$ADMIN_IDS = [799041666, 111000011];
+$TOKEN = "32432432:asdadadadasacsacacacasc";
+$ADMIN_IDS = [799041666];
 $LANGUAGE = "Farsi/Persian";
 
 function getSubtitles(): array | stdClass
@@ -49,20 +49,18 @@ function getTrackedSubtitles(string $fileName = "ids.json"): array | stdClass
         ]
     */
     $file = file_get_contents($fileName);
-    $trackedSubtitles = json_decode($file);
-
-    return $trackedSubtitles;
+    return json_decode($file);
 }
 
 
-function updateTrackedSubtitles(string $fileName = "ids.json", array $data): mixed
+function updateTrackedSubtitles(array $data, string $fileName = "ids.json"): int|bool
 {   
     $data = json_encode($data);
     return file_put_contents($fileName, $data);
 }
 
 
-function getMovie($id, $lang, $movie)
+function getMovie($id, $lang, $movie, $justSubName = false)
 {
     $url = "https://api.subsource.net/api/getSub";
     $headers = [
@@ -87,7 +85,9 @@ function getMovie($id, $lang, $movie)
 
     $request = Requests::post($url, $headers, $data);
     $content = json_decode($request->body);
-
+    if ($justSubName){
+        return $content->sub->ri[0];
+    }
     return $content->movie;
 }
 
@@ -99,9 +99,14 @@ function getImdb($id, $lang, $movie): array
 }
 
 
-function searchMovieInSerfil($imdbSlug)
+function searchMovieInSerfil($imdbSlug, $isSeries): bool|string
 {
-    $url = "https://serfil.top/movies/$imdbSlug";
+    if ($isSeries){
+        $url = "https://serfil.top/series/$imdbSlug"; 
+    }
+    else {
+        $url = "https://serfil.top/movies/$imdbSlug";
+    }
 
     $request = Requests::get($url);
     if ($request->status_code == 200) {
@@ -111,11 +116,10 @@ function searchMovieInSerfil($imdbSlug)
 }
 
 define('BOT_TOKEN', $TOKEN);
-function sendMessage($parameters) {
+function sendMessage($parameters): \WpOrg\Requests\Response
+{
     $url = 'https://api.telegram.org/bot' . BOT_TOKEN . '/sendMessage?text=' . $parameters["text"] . '&chat_id=' . $parameters["chat_id"];
-    $response = Requests::post($url, [], $parameters);
-    
-    return $response;
+    return Requests::post($url, [], $parameters);
 }
 
 
@@ -158,24 +162,26 @@ function getNewSubtitles()
             continue;
         }
 
+        $subName = getMovie(id: $subtitleID, lang:$subtitleLang, movie:$subtitleName, justSubName: true);
         $imdb = getImdb(id: $subtitleID, lang:$subtitleLang, movie:$subtitleName);
-        $serif = searchMovieInSerfil($imdb["slug"]);
-
+        $isSeries = $subtitle->type == "TV-Series" ? "🚺🚺🚺🚺🚺" : "";
+        $serif = searchMovieInSerfil($imdb["slug"], $isSeries);
         $serifText = $serif ? "\n\nserfil: `yes` ✅ [SerFil](" . $serif . ")" : "\n\nserfil: `no` 🔴 ";
-        $text = "name: `" . $subtitle->title . "`" .
+
+        $text = $isSeries .
+        "\n\nname: `" . $subName . "`" .
         "\n\nimdb link: [imdb](" . $imdb['url'] . ")" .
-        "\n\nOwner: `" . $subtitle->owner . "`" .
-        "\n\ndate: `" . $subtitle->date . "`" .
+        "\n\ntype: `" . $subtitle->type . "`" .
         $serifText .
         "\n\nsite url: [link](https://subsource.net" . $subtitle->full_link . ")";
 
         sendSubtitle($text); //send to telegram
 
-        array_push($newSubtitles, $subtitle);
-        array_push($trackedSubtitles, $subtitleID);
+        $newSubtitles[] = $subtitle;
+        $trackedSubtitles[] = $subtitleID;
     }
 
-    updateTrackedSubtitles("ids.json", $trackedSubtitles);
+    updateTrackedSubtitles($trackedSubtitles);
 
     return $newSubtitles;
 }
